@@ -5,7 +5,7 @@
   }, 
   {
     "ParameterKey": "InternetGateway",
-    "ParameterValue": "igw-5a8e433e"
+    "ParameterValue": "igw-1ebfbf7a"
   }, 
   {
     "ParameterKey": "AcceptEULA",
@@ -13,7 +13,7 @@
   }, 
   {
     "ParameterKey": "Vpc",
-    "ParameterValue": "vpc-910a2ef5"
+    "ParameterValue": "vpc-c62b41a1"
   }, 
     {
     "ParameterKey": "MasterInstanceType",
@@ -29,7 +29,7 @@
   },
       {
     "ParameterKey": "PrivateSubnet",
-    "ParameterValue": "subnet-4803ac10"
+    "ParameterValue": "subnet-ccfdf0e6"
   },
       {
     "ParameterKey": "PublicAgentInstanceCount",
@@ -41,6 +41,6 @@
   },
       {
     "ParameterKey": "PublicSubnet",
-    "ParameterValue": "subnet-4503ac1d"
+    "ParameterValue": "subnet-c0fdf0ea"
   }
 ]
