@@ -4,18 +4,175 @@
       "TemplateGenerationDate":"2016-07-29 10:19:32.666479"
    },
    "Resources":{
-      "PrivateAgentInstanceProfile":{
+      "PublicAgentRole":{
+         "Properties":{
+            "AssumeRolePolicyDocument":{
+               "Version":"2012-10-17",
+               "Statement":[
+                  {
+                     "Action":[
+                        "sts:AssumeRole"
+                     ],
+                     "Effect":"Allow",
+                     "Principal":{
+                        "Service":[
+                           "ec2.amazonaws.com"
+                        ]
+                     }
+                  }
+               ]
+            },
+            "Policies":[
+               {
+                  "PolicyDocument":{
+                     "Version":"2012-10-17",
+                     "Statement":[
+                        {
+                           "Action":[
+                              "cloudformation:*"
+                           ],
+                           "Resource":[
+                              {
+                                 "Ref":"AWS::StackId"
+                              },
+                              {
+                                 "Fn::Join":[
+                                    "",
+                                    [
+                                       {
+                                          "Ref":"AWS::StackId"
+                                       },
+                                       "/*"
+                                    ]
+                                 ]
+                              }
+                           ],
+                           "Effect":"Allow"
+                        },
+                        {
+                           "Action":[
+                              "ec2:CreateTags",
+                              "ec2:DescribeInstances",
+                              "ec2:CreateVolume",
+                              "ec2:DeleteVolume",
+                              "ec2:AttachVolume",
+                              "ec2:DetachVolume",
+                              "ec2:DescribeVolumes",
+                              "ec2:DescribeVolumeStatus",
+                              "ec2:DescribeVolumeAttribute",
+                              "ec2:CreateSnapshot",
+                              "ec2:CopySnapshot",
+                              "ec2:DeleteSnapshot",
+                              "ec2:DescribeSnapshots",
+                              "ec2:DescribeSnapshotAttribute"
+                           ],
+                           "Resource":"*",
+                           "Effect":"Allow"
+                        }
+                     ]
+                  },
+                  "PolicyName":"Agents"
+               }
+            ]
+         },
+         "Type":"AWS::IAM::Role"
+      },
+      "PublicAgentInstanceProfile":{
          "Properties":{
             "Path":"/",
             "Roles":[
                {
-                  "Ref":"PrivateAgentRole"
+                  "Ref":"PublicAgentRole"
                }
             ]
          },
          "Type":"AWS::IAM::InstanceProfile"
       },
-      "PrivateAgentLaunchConfig":{
+      "PublicAgentServerGroup":{
+         "Properties":{
+            "LoadBalancerNames":[
+               {
+                  "Ref":"PublicAgentLoadBalancer"
+               }
+            ],
+            "Tags":[
+               {
+                  "Value":"mesos-public-agent",
+                  "Key":"role",
+                  "PropagateAtLaunch":"true"
+               }
+            ],
+            "LaunchConfigurationName":{
+               "Ref":"PublicAgentLaunchConfig"
+            },
+            "MinSize":{
+               "Ref":"PublicAgentInstanceCount"
+            },
+            "DesiredCapacity":{
+               "Ref":"PublicAgentInstanceCount"
+            },
+            "MaxSize":{
+               "Ref":"PublicAgentInstanceCount"
+            },
+            "VPCZoneIdentifier":[
+               {
+                  "Ref":"PublicSubnet"
+               }
+            ]
+         },
+         "Type":"AWS::AutoScaling::AutoScalingGroup",
+         "CreationPolicy":{
+            "ResourceSignal":{
+               "Count":{
+                  "Ref":"PublicAgentInstanceCount"
+               },
+               "Timeout":{
+                  "Fn::FindInMap":[
+                     "Parameters",
+                     "StackCreationTimeout",
+                     "default"
+                  ]
+               }
+            }
+         }
+      },
+      "PublicAgentLoadBalancer":{
+         "Properties":{
+            "Subnets":[
+               {
+                  "Ref":"PublicSubnet"
+               }
+            ],
+            "HealthCheck":{
+               "UnhealthyThreshold":"2",
+               "Target":"HTTP:9090/_haproxy_health_check",
+               "HealthyThreshold":"2",
+               "Interval":"5",
+               "Timeout":"2"
+            },
+            "Listeners":[
+               {
+                  "InstanceProtocol":"TCP",
+                  "LoadBalancerPort":"80",
+                  "Protocol":"TCP",
+                  "InstancePort":"80"
+               },
+               {
+                  "InstanceProtocol":"TCP",
+                  "LoadBalancerPort":"443",
+                  "Protocol":"TCP",
+                  "InstancePort":"443"
+               }
+            ],
+            "SecurityGroups":[
+               {
+                  "Ref":"PublicAgentSecurityGroup"
+               }
+            ]
+         },
+         "Type":"AWS::ElasticLoadBalancing::LoadBalancer"
+      },
+      "PublicAgentLaunchConfig":{
          "Properties":{
             "KeyName":{
                "Ref":"KeyName"
@@ -148,7 +305,7 @@
                         "      RestartSec=15s\n",
                         "      EnvironmentFile=/opt/mesosphere/environment\n",
                         "      EnvironmentFile=/opt/mesosphere/etc/cfn_signal_metadata\n",
-                        "      Environment=\"AWS_CFN_SIGNAL_THIS_RESOURCE=PrivateAgentServerGroup\"\n",
+                        "      Environment=\"AWS_CFN_SIGNAL_THIS_RESOURCE=PublicAgentServerGroup\"\n",
                         "      ExecStartPre=/bin/ping -c1 leader.mesos\n",
                         "      ExecStartPre=/opt/mesosphere/bin/cfn-signal\n",
                         "      ExecStart=/usr/bin/touch /var/lib/dcos-cfn-signal\n",
@@ -175,7 +332,7 @@
                         "  \"permissions\": |-\n",
                         "    0644\n",
                         "- \"content\": |\n",
-                        "    [\"dcos-config--setup_f2b3807adc002e0014485eca84c51b5d3bed2da0\", \"dcos-metadata--setup_f2b3807adc002e0014485eca84c51b5d3bed2da0\"]\n",
+                        "    [\"dcos-config--setup_bfc6c1a5908b5506ebf38b45896e34397eb425ce\", \"dcos-metadata--setup_bfc6c1a5908b5506ebf38b45896e34397eb425ce\"]\n",
                         "  \"owner\": |-\n",
                         "    root\n",
                         "  \"path\": |-\n",
@@ -261,7 +418,7 @@
                         "    AWS_IAM_MASTER_ROLE_NAME=\n",
                         "    AWS_IAM_SLAVE_ROLE_NAME=",
                         {
-                           "Ref":"PrivateAgentRole"
+                           "Ref":"PublicAgentRole"
                         },
                         "",
                         "\n",
@@ -273,7 +430,7 @@
                         "    /etc/mesosphere/setup-packages/dcos-provider-aws--setup/pkginfo.json\n",
                         "- \"content\": \"\"\n",
                         "  \"path\": |-\n",
-                        "    /etc/mesosphere/roles/slave\n",
+                        "    /etc/mesosphere/roles/slave_public\n",
                         "- \"content\": \"\"\n",
                         "  \"path\": |-\n",
                         "    /etc/mesosphere/roles/aws\n"
@@ -287,9 +444,9 @@
                   "DeviceName":"/dev/sdb"
                }
             ],
-            "AssociatePublicIpAddress":"false",
+            "AssociatePublicIpAddress":"true",
             "InstanceType":{
-               "Ref":"PrivateAgentInstanceType"
+               "Ref":"PublicAgentInstanceType"
             },
             "ImageId":{
                "Fn::FindInMap":[
@@ -302,130 +459,14 @@
             },
             "SecurityGroups":[
                {
-                  "Ref":"PrivateAgentSecurityGroup"
+                  "Ref":"PublicAgentSecurityGroup"
                }
             ],
             "IamInstanceProfile":{
-               "Ref":"PrivateAgentInstanceProfile"
+               "Ref":"PublicAgentInstanceProfile"
             }
          },
          "Type":"AWS::AutoScaling::LaunchConfiguration"
-      },
-      "PrivateAgentServerGroup":{
-         "Properties":{
-            "Tags":[
-               {
-                  "Value":"mesos-private-agent",
-                  "Key":"role",
-                  "PropagateAtLaunch":"true"
-               }
-            ],
-            "LaunchConfigurationName":{
-               "Ref":"PrivateAgentLaunchConfig"
-            },
-            "MinSize":{
-               "Ref":"PrivateAgentInstanceCount"
-            },
-            "DesiredCapacity":{
-               "Ref":"PrivateAgentInstanceCount"
-            },
-            "MaxSize":{
-               "Ref":"PrivateAgentInstanceCount"
-            },
-            "VPCZoneIdentifier":[
-               {
-                  "Ref":"PrivateSubnet"
-               }
-            ]
-         },
-         "Type":"AWS::AutoScaling::AutoScalingGroup",
-         "CreationPolicy":{
-            "ResourceSignal":{
-               "Count":{
-                  "Ref":"PrivateAgentInstanceCount"
-               },
-               "Timeout":{
-                  "Fn::FindInMap":[
-                     "Parameters",
-                     "StackCreationTimeout",
-                     "default"
-                  ]
-               }
-            }
-         }
-      },
-      "PrivateAgentRole":{
-         "Properties":{
-            "AssumeRolePolicyDocument":{
-               "Version":"2012-10-17",
-               "Statement":[
-                  {
-                     "Action":[
-                        "sts:AssumeRole"
-                     ],
-                     "Effect":"Allow",
-                     "Principal":{
-                        "Service":[
-                           "ec2.amazonaws.com"
-                        ]
-                     }
-                  }
-               ]
-            },
-            "Policies":[
-               {
-                  "PolicyDocument":{
-                     "Version":"2012-10-17",
-                     "Statement":[
-                        {
-                           "Action":[
-                              "cloudformation:*"
-                           ],
-                           "Resource":[
-                              {
-                                 "Ref":"AWS::StackId"
-                              },
-                              {
-                                 "Fn::Join":[
-                                    "",
-                                    [
-                                       {
-                                          "Ref":"AWS::StackId"
-                                       },
-                                       "/*"
-                                    ]
-                                 ]
-                              }
-                           ],
-                           "Effect":"Allow"
-                        },
-                        {
-                           "Action":[
-                              "ec2:CreateTags",
-                              "ec2:DescribeInstances",
-                              "ec2:CreateVolume",
-                              "ec2:DeleteVolume",
-                              "ec2:AttachVolume",
-                              "ec2:DetachVolume",
-                              "ec2:DescribeVolumes",
-                              "ec2:DescribeVolumeStatus",
-                              "ec2:DescribeVolumeAttribute",
-                              "ec2:CreateSnapshot",
-                              "ec2:CopySnapshot",
-                              "ec2:DeleteSnapshot",
-                              "ec2:DescribeSnapshots",
-                              "ec2:DescribeSnapshotAttribute"
-                           ],
-                           "Resource":"*",
-                           "Effect":"Allow"
-                        }
-                     ]
-                  },
-                  "PolicyName":"PrivateAgents"
-               }
-            ]
-         },
-         "Type":"AWS::IAM::Role"
       }
    },
    "Mappings":{
@@ -497,7 +538,15 @@
       }
    },
    "Outputs":{
-
+      "PublicAgentDNSName":{
+         "Value":{
+            "Fn::GetAtt":[
+               "PublicAgentLoadBalancer",
+               "DNSName"
+            ]
+         },
+         "Description":"Public Agent DNS Name"
+      }
    },
    "Description":"Launching the Mesosphere DCOS cluster",
    "Parameters":{
@@ -505,27 +554,27 @@
          "Type":"AWS::EC2::KeyPair::KeyName",
          "Description":"\nSpecify your AWS EC2 Key Pair."
       },
-      "PrivateAgentSecurityGroup":{
+      "PublicAgentInstanceType":{
          "Type":"String",
-         "Description":"\nSecurity group used by Private Agents, typically with limited access to the outside"
+         "Description":"\nRegion-specific instance type. E.g. m3.xlarge",
+         "Default":"m3.xlarge"
       },
-      "PrivateSubnet":{
-         "Type":"String",
-         "Description":"\nSubnet ID for use by all private agent nodes"
-      },
-      "PrivateAgentInstanceCount":{
+      "PublicAgentInstanceCount":{
          "Type":"Number",
-         "Description":"\nSpecify the number of private agent nodes or accept the default.",
+         "Description":"\nSpecify the number of public agent nodes or accept the default.",
          "Default":"5"
       },
       "InternalMasterLoadBalancerDnsName":{
          "Type":"String",
          "Description":"\nDNS Name of Internal Load Balancer. Has to be valid for agents to join a running cluster"
       },
-      "PrivateAgentInstanceType":{
+      "PublicSubnet":{
          "Type":"String",
-         "Description":"\nRegion-specific instance type. E.g. m3.xlarge",
-         "Default":"m3.xlarge"
+         "Description":"\nSubnet ID for use by all public agent nodes"
+      },
+      "PublicAgentSecurityGroup":{
+         "Type":"String",
+         "Description":"\nPermissive Security group used by Public Agents"
       }
    },
    "AWSTemplateFormatVersion":"2010-09-09"

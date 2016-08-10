@@ -1,0 +1,46 @@
+[
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "Mesos"
+  }, 
+  {
+    "ParameterKey": "InternetGateway",
+    "ParameterValue": "igw-5a8e433e"
+  }, 
+  {
+    "ParameterKey": "AcceptEULA",
+    "ParameterValue": "Yes"
+  }, 
+  {
+    "ParameterKey": "Vpc",
+    "ParameterValue": "vpc-910a2ef5"
+  }, 
+    {
+    "ParameterKey": "MasterInstanceType",
+    "ParameterValue": "m3.large"
+  },
+    {
+    "ParameterKey": "PrivateAgentInstanceCount",
+    "ParameterValue": "5"
+  },
+    {
+    "ParameterKey": "PrivateAgentInstanceType",
+    "ParameterValue": "m3.large"
+  },
+      {
+    "ParameterKey": "PrivateSubnet",
+    "ParameterValue": "subnet-4803ac10"
+  },
+      {
+    "ParameterKey": "PublicAgentInstanceCount",
+    "ParameterValue": "2"
+  },
+      {
+    "ParameterKey": "PublicAgentInstanceType",
+    "ParameterValue": "m3.large"
+  },
+      {
+    "ParameterKey": "PublicSubnet",
+    "ParameterValue": "subnet-4503ac1d"
+  }
+]
