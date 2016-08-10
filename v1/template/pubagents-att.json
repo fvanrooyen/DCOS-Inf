@@ -1,0 +1,26 @@
+[
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "Mesos"
+  }, 
+  {
+    "ParameterKey": "InternalMasterLoadBalancerDnsName",
+    "ParameterValue": "internal-Intrepid-Internal-6909DLZGTQ40-1403619034.us-west-2.elb.amazonaws.com"
+  }, 
+  {
+    "ParameterKey": "PublicAgentInstanceCount",
+    "ParameterValue": "5"
+  }, 
+  {
+    "ParameterKey": "PublicAgentSecurityGroup",
+    "ParameterValue": "sg-18c1e37e"
+  }, 
+    {
+    "ParameterKey": "PublicAgentInstanceType",
+    "ParameterValue": "m3.large"
+  },
+    {
+    "ParameterKey": "PublicSubnet",
+    "ParameterValue": "subnet-d17cdf89"
+  }
+]

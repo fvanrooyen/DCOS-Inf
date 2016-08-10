@@ -1,0 +1,532 @@
+{
+   "Metadata":{
+      "DcosImageCommit":"fbec5b3732e80f2d5f65192539c49ba5ab9ab753",
+      "TemplateGenerationDate":"2016-07-29 10:19:32.666479"
+   },
+   "Resources":{
+      "PrivateAgentInstanceProfile":{
+         "Properties":{
+            "Path":"/",
+            "Roles":[
+               {
+                  "Ref":"PrivateAgentRole"
+               }
+            ]
+         },
+         "Type":"AWS::IAM::InstanceProfile"
+      },
+      "PrivateAgentLaunchConfig":{
+         "Properties":{
+            "KeyName":{
+               "Ref":"KeyName"
+            },
+            "UserData":{
+               "Fn::Base64":{
+                  "Fn::Join":[
+                     "",
+                     [
+                        "#cloud-config\n",
+                        "\"coreos\":\n",
+                        "  \"units\":\n",
+                        "  - \"command\": |-\n",
+                        "      start\n",
+                        "    \"content\": |\n",
+                        "      [Unit]\n",
+                        "      Description=AWS Setup: Formats the /var/lib ephemeral drive\n",
+                        "      Before=var-lib.mount dbus.service\n",
+                        "      [Service]\n",
+                        "      Type=oneshot\n",
+                        "      RemainAfterExit=yes\n",
+                        "      ExecStart=/bin/bash -c \"(blkid -t TYPE=ext4 | grep xvdb) || (/usr/sbin/mkfs.ext4 -F /dev/xvdb)\"\n",
+                        "    \"name\": |-\n",
+                        "      format-var-lib-ephemeral.service\n",
+                        "  - \"command\": |-\n",
+                        "      start\n",
+                        "    \"content\": |\n",
+                        "      [Unit]\n",
+                        "      Description=AWS Setup: Mount /var/lib\n",
+                        "      Before=dbus.service\n",
+                        "      [Mount]\n",
+                        "      What=/dev/xvdb\n",
+                        "      Where=/var/lib\n",
+                        "      Type=ext4\n",
+                        "    \"name\": |-\n",
+                        "      var-lib.mount\n",
+                        "  - \"command\": |-\n",
+                        "      stop\n",
+                        "    \"mask\": !!bool |-\n",
+                        "      true\n",
+                        "    \"name\": |-\n",
+                        "      etcd.service\n",
+                        "  - \"command\": |-\n",
+                        "      stop\n",
+                        "    \"mask\": !!bool |-\n",
+                        "      true\n",
+                        "    \"name\": |-\n",
+                        "      update-engine.service\n",
+                        "  - \"command\": |-\n",
+                        "      stop\n",
+                        "    \"mask\": !!bool |-\n",
+                        "      true\n",
+                        "    \"name\": |-\n",
+                        "      locksmithd.service\n",
+                        "  - \"command\": |-\n",
+                        "      stop\n",
+                        "    \"name\": |-\n",
+                        "      systemd-resolved.service\n",
+                        "  - \"command\": |-\n",
+                        "      restart\n",
+                        "    \"name\": |-\n",
+                        "      systemd-journald.service\n",
+                        "  - \"command\": |-\n",
+                        "      restart\n",
+                        "    \"name\": |-\n",
+                        "      docker.service\n",
+                        "  - \"command\": |-\n",
+                        "      start\n",
+                        "    \"content\": |\n",
+                        "      [Unit]\n",
+                        "      Before=dcos.target\n",
+                        "      [Service]\n",
+                        "      Type=oneshot\n",
+                        "      StandardOutput=journal+console\n",
+                        "      StandardError=journal+console\n",
+                        "      ExecStartPre=/usr/bin/mkdir -p /etc/profile.d\n",
+                        "      ExecStart=/usr/bin/ln -sf /opt/mesosphere/environment.export /etc/profile.d/dcos.sh\n",
+                        "    \"name\": |-\n",
+                        "      dcos-link-env.service\n",
+                        "  - \"content\": |\n",
+                        "      [Unit]\n",
+                        "      Description=Pkgpanda: Download the DCOS\n",
+                        "      After=network-online.target\n",
+                        "      Wants=network-online.target\n",
+                        "      ConditionPathExists=!/opt/mesosphere/\n",
+                        "      [Service]\n",
+                        "      EnvironmentFile=/etc/mesosphere/setup-flags/bootstrap-id\n",
+                        "      Type=oneshot\n",
+                        "      StandardOutput=journal+console\n",
+                        "      StandardError=journal+console\n",
+                        "      ExecStartPre=/usr/bin/curl -fLsSv --retry 20 -Y 100000 -y 60 -o /tmp/bootstrap.tar.xz https://downloads.mesosphere.com/dcos/stable/bootstrap/${BOOTSTRAP_ID}.bootstrap.tar.xz\n",
+                        "      ExecStartPre=/usr/bin/mkdir -p /opt/mesosphere\n",
+                        "      ExecStart=/usr/bin/tar -axf /tmp/bootstrap.tar.xz -C /opt/mesosphere\n",
+                        "      ExecStartPost=-/usr/bin/rm -f /tmp/bootstrap.tar.xz\n",
+                        "    \"name\": |-\n",
+                        "      dcos-download.service\n",
+                        "  - \"command\": |-\n",
+                        "      start\n",
+                        "    \"content\": |\n",
+                        "      [Unit]\n",
+                        "      Description=Pkgpanda: Specialize DCOS for this host.\n",
+                        "      Requires=dcos-download.service\n",
+                        "      After=dcos-download.service\n",
+                        "      [Service]\n",
+                        "      Type=oneshot\n",
+                        "      StandardOutput=journal+console\n",
+                        "      StandardError=journal+console\n",
+                        "      EnvironmentFile=/opt/mesosphere/environment\n",
+                        "      ExecStart=/opt/mesosphere/bin/pkgpanda setup --no-block-systemd\n",
+                        "      [Install]\n",
+                        "      WantedBy=multi-user.target\n",
+                        "    \"enable\": !!bool |-\n",
+                        "      true\n",
+                        "    \"name\": |-\n",
+                        "      dcos-setup.service\n",
+                        "    \"no_block\": !!bool |-\n",
+                        "      true\n",
+                        "  - \"command\": |-\n",
+                        "      start\n",
+                        "    \"content\": |-\n",
+                        "      [Unit]\n",
+                        "      Description=AWS Setup: Signal CloudFormation Success\n",
+                        "      After=dcos.target\n",
+                        "      Requires=dcos.target\n",
+                        "      ConditionPathExists=!/var/lib/dcos-cfn-signal\n",
+                        "      [Service]\n",
+                        "      Type=simple\n",
+                        "      Restart=on-failure\n",
+                        "      StartLimitInterval=0\n",
+                        "      RestartSec=15s\n",
+                        "      EnvironmentFile=/opt/mesosphere/environment\n",
+                        "      EnvironmentFile=/opt/mesosphere/etc/cfn_signal_metadata\n",
+                        "      Environment=\"AWS_CFN_SIGNAL_THIS_RESOURCE=PrivateAgentServerGroup\"\n",
+                        "      ExecStartPre=/bin/ping -c1 leader.mesos\n",
+                        "      ExecStartPre=/opt/mesosphere/bin/cfn-signal\n",
+                        "      ExecStart=/usr/bin/touch /var/lib/dcos-cfn-signal\n",
+                        "    \"name\": |-\n",
+                        "      dcos-cfn-signal.service\n",
+                        "  \"update\":\n",
+                        "    \"reboot-strategy\": |-\n",
+                        "      off\n",
+                        "\"write_files\":\n",
+                        "- \"content\": |\n",
+                        "    https://downloads.mesosphere.com/dcos/stable\n",
+                        "  \"owner\": |-\n",
+                        "    root\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/setup-flags/repository-url\n",
+                        "  \"permissions\": |-\n",
+                        "    0644\n",
+                        "- \"content\": |\n",
+                        "    BOOTSTRAP_ID=df308b6fc3bd91e1277baa5a3db928ae70964722\n",
+                        "  \"owner\": |-\n",
+                        "    root\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/setup-flags/bootstrap-id\n",
+                        "  \"permissions\": |-\n",
+                        "    0644\n",
+                        "- \"content\": |\n",
+                        "    [\"dcos-config--setup_f2b3807adc002e0014485eca84c51b5d3bed2da0\", \"dcos-metadata--setup_f2b3807adc002e0014485eca84c51b5d3bed2da0\"]\n",
+                        "  \"owner\": |-\n",
+                        "    root\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/setup-flags/cluster-packages.json\n",
+                        "  \"permissions\": |-\n",
+                        "    0644\n",
+                        "- \"content\": |\n",
+                        "    [Journal]\n",
+                        "    MaxLevelConsole=warning\n",
+                        "  \"owner\": |-\n",
+                        "    root\n",
+                        "  \"path\": |-\n",
+                        "    /etc/systemd/journald.conf.d/dcos.conf\n",
+                        "  \"permissions\": |-\n",
+                        "    0644\n",
+                        "- \"content\": |\n",
+                        "    ",
+                        {
+                           "Ref":"AWS::StackId"
+                        },
+                        "",
+                        "\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/cluster-id\n",
+                        "  \"permissions\": |-\n",
+                        "    0644\n",
+                        "- \"content\": |2\n",
+                        "\n",
+                        "    rexray:\n",
+                        "      loglevel: info\n",
+                        "      storageDrivers:\n",
+                        "        - ec2\n",
+                        "      volume:\n",
+                        "        unmount:\n",
+                        "          ignoreusedcount: true\n",
+                        "  \"path\": |-\n",
+                        "    /etc/rexray/config.yml\n",
+                        "  \"permissions\": |-\n",
+                        "    0644\n",
+                        "- \"content\": |\n",
+                        "    MESOS_CLUSTER=",
+                        {
+                           "Ref":"AWS::StackName"
+                        },
+                        "",
+                        "\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/setup-packages/dcos-provider-aws--setup/etc/mesos-master-provider\n",
+                        "- \"content\": |\n",
+                        "    MASTER_SOURCE=exhibitor\n",
+                        "    EXHIBITOR_ADDRESS=",
+                        {
+                           "Ref":"InternalMasterLoadBalancerDnsName"
+                        },
+                        "",
+                        "\n",
+                        "    RESOLVERS=169.254.169.253\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/setup-packages/dcos-provider-aws--setup/etc/dns_config\n",
+                        "- \"content\": |\n",
+                        "    # File intentionally has no settings - Exhibitor is not used on DCOS Agents\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/setup-packages/dcos-provider-aws--setup/etc/exhibitor\n",
+                        "- \"content\": |\n",
+                        "    AWS_REGION=",
+                        {
+                           "Ref":"AWS::Region"
+                        },
+                        "",
+                        "\n",
+                        "    AWS_STACK_ID=",
+                        {
+                           "Ref":"AWS::StackId"
+                        },
+                        "",
+                        "\n",
+                        "    AWS_STACK_NAME=",
+                        {
+                           "Ref":"AWS::StackName"
+                        },
+                        "",
+                        "\n",
+                        "    AWS_IAM_MASTER_ROLE_NAME=\n",
+                        "    AWS_IAM_SLAVE_ROLE_NAME=",
+                        {
+                           "Ref":"PrivateAgentRole"
+                        },
+                        "",
+                        "\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/setup-packages/dcos-provider-aws--setup/etc/cfn_signal_metadata\n",
+                        "- \"content\": |-\n",
+                        "    {}\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/setup-packages/dcos-provider-aws--setup/pkginfo.json\n",
+                        "- \"content\": \"\"\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/roles/slave\n",
+                        "- \"content\": \"\"\n",
+                        "  \"path\": |-\n",
+                        "    /etc/mesosphere/roles/aws\n"
+                     ]
+                  ]
+               }
+            },
+            "BlockDeviceMappings":[
+               {
+                  "VirtualName":"ephemeral0",
+                  "DeviceName":"/dev/sdb"
+               }
+            ],
+            "AssociatePublicIpAddress":"false",
+            "InstanceType":{
+               "Ref":"PrivateAgentInstanceType"
+            },
+            "ImageId":{
+               "Fn::FindInMap":[
+                  "RegionToAmi",
+                  {
+                     "Ref":"AWS::Region"
+                  },
+                  "stable"
+               ]
+            },
+            "SecurityGroups":[
+               {
+                  "Ref":"PrivateAgentSecurityGroup"
+               }
+            ],
+            "IamInstanceProfile":{
+               "Ref":"PrivateAgentInstanceProfile"
+            }
+         },
+         "Type":"AWS::AutoScaling::LaunchConfiguration"
+      },
+      "PrivateAgentServerGroup":{
+         "Properties":{
+            "Tags":[
+               {
+                  "Value":"mesos-private-agent",
+                  "Key":"role",
+                  "PropagateAtLaunch":"true"
+               }
+            ],
+            "LaunchConfigurationName":{
+               "Ref":"PrivateAgentLaunchConfig"
+            },
+            "MinSize":{
+               "Ref":"PrivateAgentInstanceCount"
+            },
+            "DesiredCapacity":{
+               "Ref":"PrivateAgentInstanceCount"
+            },
+            "MaxSize":{
+               "Ref":"PrivateAgentInstanceCount"
+            },
+            "VPCZoneIdentifier":[
+               {
+                  "Ref":"PrivateSubnet"
+               }
+            ]
+         },
+         "Type":"AWS::AutoScaling::AutoScalingGroup",
+         "CreationPolicy":{
+            "ResourceSignal":{
+               "Count":{
+                  "Ref":"PrivateAgentInstanceCount"
+               },
+               "Timeout":{
+                  "Fn::FindInMap":[
+                     "Parameters",
+                     "StackCreationTimeout",
+                     "default"
+                  ]
+               }
+            }
+         }
+      },
+      "PrivateAgentRole":{
+         "Properties":{
+            "AssumeRolePolicyDocument":{
+               "Version":"2012-10-17",
+               "Statement":[
+                  {
+                     "Action":[
+                        "sts:AssumeRole"
+                     ],
+                     "Effect":"Allow",
+                     "Principal":{
+                        "Service":[
+                           "ec2.amazonaws.com"
+                        ]
+                     }
+                  }
+               ]
+            },
+            "Policies":[
+               {
+                  "PolicyDocument":{
+                     "Version":"2012-10-17",
+                     "Statement":[
+                        {
+                           "Action":[
+                              "cloudformation:*"
+                           ],
+                           "Resource":[
+                              {
+                                 "Ref":"AWS::StackId"
+                              },
+                              {
+                                 "Fn::Join":[
+                                    "",
+                                    [
+                                       {
+                                          "Ref":"AWS::StackId"
+                                       },
+                                       "/*"
+                                    ]
+                                 ]
+                              }
+                           ],
+                           "Effect":"Allow"
+                        },
+                        {
+                           "Action":[
+                              "ec2:CreateTags",
+                              "ec2:DescribeInstances",
+                              "ec2:CreateVolume",
+                              "ec2:DeleteVolume",
+                              "ec2:AttachVolume",
+                              "ec2:DetachVolume",
+                              "ec2:DescribeVolumes",
+                              "ec2:DescribeVolumeStatus",
+                              "ec2:DescribeVolumeAttribute",
+                              "ec2:CreateSnapshot",
+                              "ec2:CopySnapshot",
+                              "ec2:DeleteSnapshot",
+                              "ec2:DescribeSnapshots",
+                              "ec2:DescribeSnapshotAttribute"
+                           ],
+                           "Resource":"*",
+                           "Effect":"Allow"
+                        }
+                     ]
+                  },
+                  "PolicyName":"PrivateAgents"
+               }
+            ]
+         },
+         "Type":"AWS::IAM::Role"
+      }
+   },
+   "Mappings":{
+      "NATAmi":{
+         "us-east-1":{
+            "default":"ami-4c9e4b24"
+         },
+         "ap-southeast-1":{
+            "default":"ami-b082dae2"
+         },
+         "us-west-2":{
+            "default":"ami-bb69128b"
+         },
+         "us-west-1":{
+            "default":"ami-2b2b296e"
+         },
+         "sa-east-1":{
+            "default":"ami-b972dba4"
+         },
+         "eu-central-1":{
+            "default":"ami-204c7a3d"
+         },
+         "ap-northeast-1":{
+            "default":"ami-55c29e54"
+         },
+         "eu-west-1":{
+            "default":"ami-3760b040"
+         },
+         "ap-southeast-2":{
+            "default":"ami-996402a3"
+         }
+      },
+      "Parameters":{
+         "StackCreationTimeout":{
+            "default":"PT60M"
+         }
+      },
+      "RegionToAmi":{
+         "us-east-1":{
+            "stable":"ami-6c44c77b"
+         },
+         "ap-southeast-1":{
+            "stable":"ami-3120fe52"
+         },
+         "us-west-2":{
+            "stable":"ami-dc6ba3bc"
+         },
+         "us-gov-west-1":{
+            "stable":"ami-b712acd6"
+         },
+         "sa-east-1":{
+            "stable":"ami-61e3750d"
+         },
+         "eu-central-1":{
+            "stable":"ami-3ae31555"
+         },
+         "us-west-1":{
+            "stable":"ami-ee57148e"
+         },
+         "ap-northeast-1":{
+            "stable":"ami-965899f7"
+         },
+         "eu-west-1":{
+            "stable":"ami-b7cba3c4"
+         },
+         "ap-southeast-2":{
+            "stable":"ami-b1291dd2"
+         }
+      }
+   },
+   "Outputs":{
+
+   },
+   "Description":"Launching the Mesosphere DCOS cluster",
+   "Parameters":{
+      "KeyName":{
+         "Type":"AWS::EC2::KeyPair::KeyName",
+         "Description":"\nSpecify your AWS EC2 Key Pair."
+      },
+      "PrivateAgentSecurityGroup":{
+         "Type":"String",
+         "Description":"\nSecurity group used by Private Agents, typically with limited access to the outside"
+      },
+      "PrivateSubnet":{
+         "Type":"String",
+         "Description":"\nSubnet ID for use by all private agent nodes"
+      },
+      "PrivateAgentInstanceCount":{
+         "Type":"Number",
+         "Description":"\nSpecify the number of private agent nodes or accept the default.",
+         "Default":"5"
+      },
+      "InternalMasterLoadBalancerDnsName":{
+         "Type":"String",
+         "Description":"\nDNS Name of Internal Load Balancer. Has to be valid for agents to join a running cluster"
+      },
+      "PrivateAgentInstanceType":{
+         "Type":"String",
+         "Description":"\nRegion-specific instance type. E.g. m3.xlarge",
+         "Default":"m3.xlarge"
+      }
+   },
+   "AWSTemplateFormatVersion":"2010-09-09"
+}
